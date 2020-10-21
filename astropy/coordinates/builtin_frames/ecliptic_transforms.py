@@ -4,6 +4,7 @@
 Contains the transformation functions for getting to/from ecliptic systems.
 """
 import erfa
+import numpy as np
 
 from astropy import units as u
 from astropy.coordinates.baseframe import frame_transform_graph
@@ -93,6 +94,15 @@ def baryecliptic_to_icrs(from_coo, to_frame):
     return matrix_transpose(icrs_to_baryecliptic(to_frame, from_coo))
 
 
+@frame_transform_graph.transform(DynamicMatrixTransform,
+                                 BarycentricMeanEcliptic, BarycentricMeanEcliptic)
+def baryecliptic_to_baryecliptic(from_coo, to_frame):
+    if np.all(from_coo.equinox == to_frame.equinox):
+        return None
+    else:
+        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)[0]
+
+
 _NEED_ORIGIN_HINT = ("The input {0} coordinates do not have length units. This "
                      "probably means you created coordinates with lat/lon but "
                      "no distance.  Heliocentric<->ICRS transforms cannot "
@@ -136,6 +146,15 @@ def helioecliptic_to_icrs(from_coo, to_frame):
     return matrix_transpose(rmat), bary_sun_pos
 
 
+@frame_transform_graph.transform(AffineTransform,
+                                 HeliocentricMeanEcliptic, HeliocentricMeanEcliptic)
+def helioecliptic_to_helioecliptic(from_coo, to_frame):
+    if np.all(from_coo.obstime == to_frame.obstime) and np.all(from_coo.equinox == to_frame.equinox):
+        return None, None
+    else:
+        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
+
+
 # TrueEcliptic frames
 
 
@@ -169,6 +188,15 @@ def icrs_to_true_baryecliptic(from_coo, to_frame):
 @frame_transform_graph.transform(DynamicMatrixTransform, BarycentricTrueEcliptic, ICRS)
 def true_baryecliptic_to_icrs(from_coo, to_frame):
     return matrix_transpose(icrs_to_true_baryecliptic(to_frame, from_coo))
+
+
+@frame_transform_graph.transform(DynamicMatrixTransform,
+                                 BarycentricTrueEcliptic, BarycentricTrueEcliptic)
+def baryecliptic_to_baryecliptic(from_coo, to_frame):
+    if np.all(from_coo.equinox == to_frame.equinox):
+        return None
+    else:
+        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)[0]
 
 
 @frame_transform_graph.transform(AffineTransform,
@@ -208,6 +236,15 @@ def true_helioecliptic_to_icrs(from_coo, to_frame):
     return matrix_transpose(rmat), bary_sun_pos
 
 
+@frame_transform_graph.transform(AffineTransform,
+                                 HeliocentricTrueEcliptic, HeliocentricTrueEcliptic)
+def helioecliptic_to_helioecliptic(from_coo, to_frame):
+    if np.all(from_coo.obstime == to_frame.obstime) and np.all(from_coo.equinox == to_frame.equinox):
+        return None, None
+    else:
+        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
+
+
 # Other ecliptic frames
 
 
@@ -240,6 +277,15 @@ def icrs_to_iau76_ecliptic(from_coo, to_frame):
     return rmat, (-bary_sun_pos).transform(rmat)
 
 
+@frame_transform_graph.transform(AffineTransform,
+                                 HeliocentricEclipticIAU76, HeliocentricEclipticIAU76)
+def iau76_ecliptic_to_iau76_ecliptic(from_coo, to_frame):
+    if np.all(from_coo.obstime == to_frame.obstime):
+        return None, None
+    else:
+        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
+
+
 @frame_transform_graph.transform(DynamicMatrixTransform,
                                  ICRS, CustomBarycentricEcliptic)
 def icrs_to_custombaryecliptic(from_coo, to_frame):
@@ -250,3 +296,12 @@ def icrs_to_custombaryecliptic(from_coo, to_frame):
                                  CustomBarycentricEcliptic, ICRS)
 def custombaryecliptic_to_icrs(from_coo, to_frame):
     return icrs_to_custombaryecliptic(to_frame, from_coo).T
+
+
+@frame_transform_graph.transform(DynamicMatrixTransform,
+                                 CustomBarycentricEcliptic, CustomBarycentricEcliptic)
+def custombaryecliptic_to_custombaryecliptic(from_coo, to_frame):
+    if np.all(from_coo.obliquity == to_frame.obliquity):
+        return None
+    else:
+        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)[0]

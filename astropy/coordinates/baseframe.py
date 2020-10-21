@@ -23,7 +23,7 @@ from astropy.utils.exceptions import AstropyWarning, AstropyDeprecationWarning
 from astropy import units as u
 from astropy.utils import (OrderedDescriptorContainer, ShapedLikeNDArray,
                            check_broadcast)
-from .transformations import TransformGraph
+from .transformations import BaseAffineTransform, TransformGraph, _combine_affine_params
 from . import representation as r
 from .angles import Angle
 from .attributes import Attribute
@@ -1167,30 +1167,14 @@ class BaseCoordinateFrame(ShapedLikeNDArray, metaclass=FrameMeta):
 
         return self.cache['representation'][cache_key]
 
-    def transform_to(self, new_frame):
+    def _conform_and_get_transformation(self, new_frame):
         """
-        Transform this object's coordinate data to a new frame.
-
-        Parameters
-        ----------
-        new_frame : frame object or SkyCoord object
-            The frame to transform this coordinate frame into.
-
-        Returns
-        -------
-        transframe
-            A new object with the coordinate data represented in the
-            ``newframe`` system.
-
-        Raises
-        ------
-        ValueError
-            If there is no possible transformation route.
+        Return a tuple with:
+        * ``new_frame`` as a ``BaseCoordinateFrame`` instance.
+        * The `~astropy.coordinates.CompositeTransform` to convert from
+          ``self`` to ``new_frame``.
         """
         from .errors import ConvertError
-
-        if self._data is None:
-            raise ValueError('Cannot transform a frame with no data')
 
         if (getattr(self.data, 'differentials', None)
                 and hasattr(self, 'obstime') and hasattr(new_frame, 'obstime')
@@ -1218,13 +1202,100 @@ class BaseCoordinateFrame(ShapedLikeNDArray, metaclass=FrameMeta):
 
         trans = frame_transform_graph.get_transform(self.__class__,
                                                     new_frame.__class__)
-        if trans is None:
-            if new_frame is self.__class__:
-                # no special transform needed, but should update frame info
-                return new_frame.realize_frame(self.data)
+        if trans is None and new_frame is not self.__class__:
             msg = 'Cannot transform from {0} to {1}'
             raise ConvertError(msg.format(self.__class__, new_frame.__class__))
+
+        return new_frame, trans
+
+    def transform_to(self, new_frame):
+        """
+        Transform this object's coordinate data to a new frame.
+
+        Parameters
+        ----------
+        new_frame : frame object or SkyCoord object
+            The frame to transform this coordinate frame into.
+
+        Returns
+        -------
+        transframe
+            A new object with the coordinate data represented in the
+            ``newframe`` system.
+
+        Raises
+        ------
+        ValueError
+            If there is no possible transformation route.
+        """
+        if self._data is None:
+            raise ValueError('Cannot transform a frame with no data')
+
+        new_frame, trans = self._conform_and_get_transformation(new_frame)
+
+        if trans is None:
+            # no special transform needed, but should update frame info
+            return new_frame.realize_frame(self.data)
+
         return trans(self, new_frame)
+
+    def _get_equivalent_affine_params_to(self, new_frame, *further_frames):
+        """
+        Return equivalent affine parameters for transforming to a new frame.
+
+        The parameters for an affine transformation are a 3 x 3 Cartesian
+        transformation matrix and a displacement vector, which can include an
+        attached velocity.  Either type of parameter can be ``None``.
+
+        Every transformation step to the new frame must be an affine
+        transformation.  Further frames can be provided as additional arguments,
+        and the returned parameters will be for the full transformation sequence
+        of the arguments in the provided order.
+        """
+        from .errors import ConvertError
+
+        new_frame, trans = self._conform_and_get_transformation(new_frame)
+
+        affine_params = (None, None)
+
+        if trans is not None:
+            curr_frame = self
+
+            for t in trans.transforms:
+                if not isinstance(t, BaseAffineTransform):
+                    raise ConvertError(f"The transformation "
+                                       f"from {t.fromsys.__name__} "
+                                       f"to {t.tosys.__name__} "
+                                       f"is a {t.__class__.__name__} "
+                                       "rather than an affine transformation.")
+
+                # build an intermediate frame with attributes taken from either
+                # self, or if not there, `new_frame`, or if not there, use
+                # the defaults
+                frattrs = {}
+                for inter_frame_attr_nm in t.tosys.get_frame_attr_names():
+                    if hasattr(new_frame, inter_frame_attr_nm):
+                        attr = getattr(new_frame, inter_frame_attr_nm)
+                        frattrs[inter_frame_attr_nm] = attr
+                    elif hasattr(self, inter_frame_attr_nm):
+                        attr = getattr(self, inter_frame_attr_nm)
+                        frattrs[inter_frame_attr_nm] = attr
+
+                next_frame = t.tosys(**frattrs)
+
+                next_affine_params = t._affine_params(curr_frame, next_frame)
+                affine_params = _combine_affine_params(affine_params, next_affine_params)
+
+                # The frame needs to have data for the machinery, but that data should not be
+                # relevant for affine transforms, so we populate with the (untransformed) data
+                curr_frame = next_frame.realize_frame(self.data)
+
+        # Recurse if more than one destination frame was provided
+        if further_frames:
+            further_params = curr_frame._get_equivalent_affine_params_to(*further_frames)
+            affine_params = _combine_affine_params(affine_params, further_params)
+
+        return affine_params
 
     def is_transformable_to(self, new_frame):
         """

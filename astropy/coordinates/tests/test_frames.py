@@ -1479,7 +1479,7 @@ def test_coordinateattribute_transformation():
     class FrameWithCoordinateAttribute(BaseCoordinateFrame):
         coord_attr = CoordinateAttribute(HCRS)
 
-    hcrs = HCRS(1*u.deg, 2*u.deg, 3*u.AU, obstime='2001-02-03')
+    hcrs = HCRS(1*u.AU, 2*u.AU, 3*u.AU, representation_type='cartesian', obstime='2001-02-03')
     f1_frame = FrameWithCoordinateAttribute(coord_attr=hcrs)
     f1_skycoord = FrameWithCoordinateAttribute(coord_attr=SkyCoord(hcrs))
 

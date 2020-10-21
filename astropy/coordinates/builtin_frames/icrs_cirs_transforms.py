@@ -282,13 +282,13 @@ def icrs_to_hcrs(icrs_coo, hcrs_frame):
     return None, bary_sun_pos
 
 
-@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, HCRS, HCRS)
+@frame_transform_graph.transform(AffineTransform, HCRS, HCRS)
 def hcrs_to_hcrs(from_coo, to_frame):
     if np.all(from_coo.obstime == to_frame.obstime):
-        return to_frame.realize_frame(from_coo.data)
+        return None, None
     else:
         # like CIRS, we do this self-transform via ICRS
-        return from_coo.transform_to(ICRS()).transform_to(to_frame)
+        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
 
 
 @frame_transform_graph.transform(FunctionTransformWithFiniteDifference, TETE, TETE)

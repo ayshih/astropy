@@ -229,6 +229,16 @@ def precessedgeo_to_gcrs(from_coo, to_frame):
     return gcrs_coo.transform_to(to_frame)
 
 
+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference,
+                                 PrecessedGeocentric, PrecessedGeocentric)
+def precessedgeo_to_precessedgeo(from_coo, to_frame):
+    # loopback transform through GCRS
+    gcrs = GCRS(obstime=from_coo.obstime,
+                obsgeoloc=from_coo.obsgeoloc,
+                obsgeovel=from_coo.obsgeovel)
+    return from_coo.transform_to(gcrs).transform_to(to_frame)
+
+
 @frame_transform_graph.transform(FunctionTransformWithFiniteDifference, TEME, ITRS)
 def teme_to_itrs(teme_coo, itrs_frame):
     # use the pmatrix to transform to ITRS in the source obstime

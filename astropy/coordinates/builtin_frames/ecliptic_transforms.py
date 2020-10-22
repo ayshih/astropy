@@ -84,6 +84,15 @@ def geoecliptic_to_gcrs(from_coo, gcrs_frame):
     return gcrs.transform_to(gcrs_frame)
 
 
+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference,
+                                 GeocentricMeanEcliptic, GeocentricMeanEcliptic)
+def geoecliptic_to_geoecliptic(from_coo, to_frame):
+    if np.all(from_coo.obstime == to_frame.obstime) and np.all(from_coo.equinox == to_frame.equinox):
+        return to_frame.realize_frame(from_coo.data)
+    else:
+        return from_coo.transform_to(GCRS(obstime=from_coo.obstime)).transform_to(to_frame)
+
+
 @frame_transform_graph.transform(DynamicMatrixTransform, ICRS, BarycentricMeanEcliptic)
 def icrs_to_baryecliptic(from_coo, to_frame):
     return _mean_ecliptic_rotation_matrix(to_frame.equinox)
@@ -178,6 +187,15 @@ def true_geoecliptic_to_gcrs(from_coo, gcrs_frame):
 
     # now do any needed offsets (no-op if same obstime and 0 pos/vel)
     return gcrs.transform_to(gcrs_frame)
+
+
+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference,
+                                 GeocentricTrueEcliptic, GeocentricTrueEcliptic)
+def true_geoecliptic_to_true_geoecliptic(from_coo, to_frame):
+    if np.all(from_coo.obstime == to_frame.obstime) and np.all(from_coo.equinox == to_frame.equinox):
+        return to_frame.realize_frame(from_coo.data)
+    else:
+        return from_coo.transform_to(GCRS(obstime=from_coo.obstime)).transform_to(to_frame)
 
 
 @frame_transform_graph.transform(DynamicMatrixTransform, ICRS, BarycentricTrueEcliptic)

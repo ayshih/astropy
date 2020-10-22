@@ -584,3 +584,8 @@ def icrs_to_galactocentric(icrs_coord, galactocentric_frame):
 def galactocentric_to_icrs(galactocentric_coord, icrs_frame):
     _check_coord_repr_diff_types(galactocentric_coord)
     return get_matrix_vectors(galactocentric_coord, inverse=True)
+
+
+@frame_transform_graph.transform(AffineTransform, Galactocentric, Galactocentric)
+def galactocentric_to_galactocentric(from_coo, to_frame):
+    return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)

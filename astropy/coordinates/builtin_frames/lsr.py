@@ -80,6 +80,12 @@ def lsr_to_icrs(lsr_coord, icrs_frame):
     offset = r.CartesianRepresentation([0, 0, 0]*u.au, differentials=-v_offset)
     return None, offset
 
+
+@frame_transform_graph.transform(AffineTransform, LSR, LSR)
+def lsr_to_lsr(from_coo, to_frame):
+    return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
+
+
 # ------------------------------------------------------------------------------
 
 
@@ -159,6 +165,11 @@ def galacticlsr_to_galactic(lsr_coord, galactic_frame):
     v_offset = v_bary_gal.data.represent_as(r.CartesianDifferential)
     offset = r.CartesianRepresentation([0, 0, 0]*u.au, differentials=-v_offset)
     return None, offset
+
+
+@frame_transform_graph.transform(AffineTransform, GalacticLSR, GalacticLSR)
+def galacticlsr_to_galacticlsr(from_coo, to_frame):
+    return from_coo._get_equivalent_affine_params_to(Galactic(), to_frame)
 
 
 # ------------------------------------------------------------------------------

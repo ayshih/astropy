@@ -674,6 +674,100 @@ class TransformGraph:
             return func
         return deco
 
+    def _create_direct_transform(self, fromsys, viasys, tosys, priority=1):
+        """
+        Create and register a direct transform from one frame to another frame
+        via an intermediate frame, using the transforms that already exist in
+        the graph.
+
+        This method is primarily useful for defining loopback transformations
+        (i.e., where ``fromsys`` and ``tosys`` are the same).
+
+        Parameters
+        ----------
+        fromsys : class
+            The coordinate frame class to start from.
+        viasys : class
+            The coordinate frame class to transform through.
+        tosys : class
+            The coordinate frame class to transform into.
+        priority : number
+            The priority if this transform when finding the shortest
+            coordinate transform path - large numbers are lower priorities.
+
+        Notes
+        -----
+        Even though the created transform is a single step in the graph, it
+        will still internally call the constituent transforms.  Thus, there is
+        no performance benefit for using this created transform.
+
+        For Astropy's built-in frames, the most common choice for ``viasys`` is
+        `~astropy.coordinates.ICRS`.
+
+        An error will be raised if a direct transform between ``fromsys`` and
+        ``tosys`` already exists, regardless of whether that existing transform
+        internally uses ``viasys``.
+        """
+        full_path = self.get_transform(fromsys, tosys)
+        if full_path is None:
+            raise ValueError(f"{fromsys.__name__}->{tosys.__name__} is not possible")
+        if len(full_path.transforms) == 1:
+            raise ValueError(f"A direct transform for {fromsys.__name__}->{tosys.__name__} already exists")
+
+        transform_string = f"{fromsys.__name__}->{tosys.__name__} via {viasys.__name__}"
+
+        first_path = self.get_transform(fromsys, viasys)
+        second_path = self.get_transform(viasys, tosys)
+        if first_path is None or second_path is None:
+            raise ValueError(f"{transform_string} is not possible")
+
+        trans_class_set = set([type(t) for t in first_path.transforms] +
+                              [type(t) for t in second_path.transforms])
+
+        # Shared frame attributes are used for instantiating the intermediate frame
+        # For any attributes that are shared by the "from"/"to" frames, the "to" frame takes precedence
+        second_overlap = set(second_path.overlapping_frame_attr_names)
+        first_overlap = set(first_path.overlapping_frame_attr_names) - second_overlap
+
+        def direct_get_via_attrs(from_coo, to_frame):
+            via_attrs = dict(zip(first_overlap, [getattr(from_coo, n) for n in first_overlap]))
+            via_attrs.update(zip(second_overlap, [getattr(to_frame, n) for n in second_overlap]))
+            return via_attrs
+
+        # If all of the transforms are affine, we can create an affine transform
+        if all([issubclass(tc, BaseAffineTransform) for tc in trans_class_set]):
+
+            # If all of the transforms do not return offsets, we can use DynamicMatrixTransform
+            if all([issubclass(tc, (StaticMatrixTransform, DynamicMatrixTransform))
+                    for tc in trans_class_set]):
+                def direct_DMT(from_coo, to_frame):
+                    if from_coo.is_equivalent_frame(to_frame):  # loopback to the same frame
+                        return None
+                    via_attrs = direct_get_via_attrs(from_coo, to_frame)
+                    return from_coo._get_equivalent_affine_params_to(viasys(**via_attrs), to_frame)[0]
+                DynamicMatrixTransform(direct_DMT, fromsys, tosys,
+                                       priority=priority, register_graph=self)
+
+            # Otherwise, we have to use AffineTransform
+            else:
+                def direct_AT(from_coo, to_frame):
+                    if from_coo.is_equivalent_frame(to_frame):  # loopback to the same frame
+                        return None, None
+                    via_attrs = direct_get_via_attrs(from_coo, to_frame)
+                    return from_coo._get_equivalent_affine_params_to(viasys(**via_attrs), to_frame)
+                AffineTransform(direct_AT, fromsys, tosys, priority=priority,
+                                register_graph=self)
+
+        # Otherwise, we have to use FunctionTransformWithFiniteDifference
+        else:
+            def direct_FTWFD(from_coo, to_frame):
+                if from_coo.is_equivalent_frame(to_frame):  # loopback to the same frame
+                    return to_frame.realize_frame(from_coo.data)
+                via_attrs = direct_get_via_attrs(from_coo, to_frame)
+                return from_coo.transform_to(viasys(**via_attrs)).transform_to(to_frame)
+            FunctionTransformWithFiniteDifference(direct_FTWFD, fromsys, tosys,
+                                                  priority=priority, register_graph=self)
+
     @contextmanager
     def impose_finite_difference_dt(self, dt):
         """

@@ -4,7 +4,6 @@
 Contains the transformation functions for getting to/from ecliptic systems.
 """
 import erfa
-import numpy as np
 
 from astropy import units as u
 from astropy.coordinates.baseframe import frame_transform_graph
@@ -84,15 +83,6 @@ def geoecliptic_to_gcrs(from_coo, gcrs_frame):
     return gcrs.transform_to(gcrs_frame)
 
 
-@frame_transform_graph.transform(FunctionTransformWithFiniteDifference,
-                                 GeocentricMeanEcliptic, GeocentricMeanEcliptic)
-def geoecliptic_to_geoecliptic(from_coo, to_frame):
-    if np.all(from_coo.obstime == to_frame.obstime) and np.all(from_coo.equinox == to_frame.equinox):
-        return to_frame.realize_frame(from_coo.data)
-    else:
-        return from_coo.transform_to(GCRS(obstime=from_coo.obstime)).transform_to(to_frame)
-
-
 @frame_transform_graph.transform(DynamicMatrixTransform, ICRS, BarycentricMeanEcliptic)
 def icrs_to_baryecliptic(from_coo, to_frame):
     return _mean_ecliptic_rotation_matrix(to_frame.equinox)
@@ -101,15 +91,6 @@ def icrs_to_baryecliptic(from_coo, to_frame):
 @frame_transform_graph.transform(DynamicMatrixTransform, BarycentricMeanEcliptic, ICRS)
 def baryecliptic_to_icrs(from_coo, to_frame):
     return matrix_transpose(icrs_to_baryecliptic(to_frame, from_coo))
-
-
-@frame_transform_graph.transform(DynamicMatrixTransform,
-                                 BarycentricMeanEcliptic, BarycentricMeanEcliptic)
-def baryecliptic_to_baryecliptic(from_coo, to_frame):
-    if np.all(from_coo.equinox == to_frame.equinox):
-        return None
-    else:
-        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)[0]
 
 
 _NEED_ORIGIN_HINT = ("The input {0} coordinates do not have length units. This "
@@ -155,15 +136,6 @@ def helioecliptic_to_icrs(from_coo, to_frame):
     return matrix_transpose(rmat), bary_sun_pos
 
 
-@frame_transform_graph.transform(AffineTransform,
-                                 HeliocentricMeanEcliptic, HeliocentricMeanEcliptic)
-def helioecliptic_to_helioecliptic(from_coo, to_frame):
-    if np.all(from_coo.obstime == to_frame.obstime) and np.all(from_coo.equinox == to_frame.equinox):
-        return None, None
-    else:
-        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
-
-
 # TrueEcliptic frames
 
 
@@ -189,15 +161,6 @@ def true_geoecliptic_to_gcrs(from_coo, gcrs_frame):
     return gcrs.transform_to(gcrs_frame)
 
 
-@frame_transform_graph.transform(FunctionTransformWithFiniteDifference,
-                                 GeocentricTrueEcliptic, GeocentricTrueEcliptic)
-def true_geoecliptic_to_true_geoecliptic(from_coo, to_frame):
-    if np.all(from_coo.obstime == to_frame.obstime) and np.all(from_coo.equinox == to_frame.equinox):
-        return to_frame.realize_frame(from_coo.data)
-    else:
-        return from_coo.transform_to(GCRS(obstime=from_coo.obstime)).transform_to(to_frame)
-
-
 @frame_transform_graph.transform(DynamicMatrixTransform, ICRS, BarycentricTrueEcliptic)
 def icrs_to_true_baryecliptic(from_coo, to_frame):
     return _true_ecliptic_rotation_matrix(to_frame.equinox)
@@ -206,15 +169,6 @@ def icrs_to_true_baryecliptic(from_coo, to_frame):
 @frame_transform_graph.transform(DynamicMatrixTransform, BarycentricTrueEcliptic, ICRS)
 def true_baryecliptic_to_icrs(from_coo, to_frame):
     return matrix_transpose(icrs_to_true_baryecliptic(to_frame, from_coo))
-
-
-@frame_transform_graph.transform(DynamicMatrixTransform,
-                                 BarycentricTrueEcliptic, BarycentricTrueEcliptic)
-def baryecliptic_to_baryecliptic(from_coo, to_frame):
-    if np.all(from_coo.equinox == to_frame.equinox):
-        return None
-    else:
-        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)[0]
 
 
 @frame_transform_graph.transform(AffineTransform,
@@ -254,15 +208,6 @@ def true_helioecliptic_to_icrs(from_coo, to_frame):
     return matrix_transpose(rmat), bary_sun_pos
 
 
-@frame_transform_graph.transform(AffineTransform,
-                                 HeliocentricTrueEcliptic, HeliocentricTrueEcliptic)
-def helioecliptic_to_helioecliptic(from_coo, to_frame):
-    if np.all(from_coo.obstime == to_frame.obstime) and np.all(from_coo.equinox == to_frame.equinox):
-        return None, None
-    else:
-        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
-
-
 # Other ecliptic frames
 
 
@@ -295,15 +240,6 @@ def icrs_to_iau76_ecliptic(from_coo, to_frame):
     return rmat, (-bary_sun_pos).transform(rmat)
 
 
-@frame_transform_graph.transform(AffineTransform,
-                                 HeliocentricEclipticIAU76, HeliocentricEclipticIAU76)
-def iau76_ecliptic_to_iau76_ecliptic(from_coo, to_frame):
-    if np.all(from_coo.obstime == to_frame.obstime):
-        return None, None
-    else:
-        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
-
-
 @frame_transform_graph.transform(DynamicMatrixTransform,
                                  ICRS, CustomBarycentricEcliptic)
 def icrs_to_custombaryecliptic(from_coo, to_frame):
@@ -316,10 +252,12 @@ def custombaryecliptic_to_icrs(from_coo, to_frame):
     return icrs_to_custombaryecliptic(to_frame, from_coo).T
 
 
-@frame_transform_graph.transform(DynamicMatrixTransform,
-                                 CustomBarycentricEcliptic, CustomBarycentricEcliptic)
-def custombaryecliptic_to_custombaryecliptic(from_coo, to_frame):
-    if np.all(from_coo.obliquity == to_frame.obliquity):
-        return None
-    else:
-        return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)[0]
+# Create loopback transformations
+frame_transform_graph._create_direct_transform(GeocentricMeanEcliptic, ICRS, GeocentricMeanEcliptic)
+frame_transform_graph._create_direct_transform(GeocentricTrueEcliptic, ICRS, GeocentricTrueEcliptic)
+frame_transform_graph._create_direct_transform(HeliocentricMeanEcliptic, ICRS, HeliocentricMeanEcliptic)
+frame_transform_graph._create_direct_transform(HeliocentricTrueEcliptic, ICRS, HeliocentricTrueEcliptic)
+frame_transform_graph._create_direct_transform(HeliocentricEclipticIAU76, ICRS, HeliocentricEclipticIAU76)
+frame_transform_graph._create_direct_transform(BarycentricMeanEcliptic, ICRS, BarycentricMeanEcliptic)
+frame_transform_graph._create_direct_transform(BarycentricTrueEcliptic, ICRS, BarycentricTrueEcliptic)
+frame_transform_graph._create_direct_transform(CustomBarycentricEcliptic, ICRS, CustomBarycentricEcliptic)

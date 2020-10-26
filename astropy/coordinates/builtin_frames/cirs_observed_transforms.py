@@ -99,8 +99,5 @@ def altaz_to_cirs(altaz_coo, cirs_frame):
     return cirs_at_aa_time.transform_to(cirs_frame)
 
 
-@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, AltAz, AltAz)
-def altaz_to_altaz(from_coo, to_frame):
-    # for now we just implement this through CIRS to make sure we get everything
-    # covered
-    return from_coo.transform_to(CIRS(obstime=from_coo.obstime)).transform_to(to_frame)
+# Create loopback transformation
+frame_transform_graph._create_direct_transform(AltAz, CIRS, AltAz)

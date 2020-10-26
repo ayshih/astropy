@@ -14,6 +14,7 @@ from astropy.coordinates.baseframe import frame_transform_graph
 from astropy.coordinates.transformations import FunctionTransformWithFiniteDifference
 from astropy.coordinates.matrix_utilities import matrix_transpose
 
+from .icrs import ICRS
 from .gcrs import GCRS, PrecessedGeocentric
 from .cirs import CIRS
 from .itrs import ITRS
@@ -190,12 +191,6 @@ def itrs_to_cirs(itrs_coo, cirs_frame):
     return cirs.transform_to(cirs_frame)
 
 
-@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, ITRS)
-def itrs_to_itrs(from_coo, to_frame):
-    # this self-transform goes through CIRS right now, which implicitly also
-    # goes back to ICRS
-    return from_coo.transform_to(CIRS()).transform_to(to_frame)
-
 # TODO: implement GCRS<->CIRS if there's call for it.  The thing that's awkward
 # is that they both have obstimes, so an extra set of transformations are necessary.
 # so unless there's a specific need for that, better to just have it go through the above
@@ -229,16 +224,6 @@ def precessedgeo_to_gcrs(from_coo, to_frame):
     return gcrs_coo.transform_to(to_frame)
 
 
-@frame_transform_graph.transform(FunctionTransformWithFiniteDifference,
-                                 PrecessedGeocentric, PrecessedGeocentric)
-def precessedgeo_to_precessedgeo(from_coo, to_frame):
-    # loopback transform through GCRS
-    gcrs = GCRS(obstime=from_coo.obstime,
-                obsgeoloc=from_coo.obsgeoloc,
-                obsgeovel=from_coo.obsgeovel)
-    return from_coo.transform_to(gcrs).transform_to(to_frame)
-
-
 @frame_transform_graph.transform(FunctionTransformWithFiniteDifference, TEME, ITRS)
 def teme_to_itrs(teme_coo, itrs_frame):
     # use the pmatrix to transform to ITRS in the source obstime
@@ -261,11 +246,8 @@ def itrs_to_teme(itrs_coo, teme_frame):
     return teme_frame.realize_frame(newrepr)
 
 
-@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, TEME, TEME)
-def teme_to_teme(from_coo, to_frame):
-    if np.all(from_coo.obstime == to_frame.obstime):
-        return to_frame.realize_frame(from_coo.data)
-    else:
-        # this self-transform goes through ITRS right now, which implicitly also
-        # goes back to ICRS
-        return from_coo.transform_to(ITRS(obstime=from_coo.obstime)).transform_to(to_frame)
+# Create loopback transformations
+frame_transform_graph._create_direct_transform(ITRS, CIRS, ITRS)
+frame_transform_graph._create_direct_transform(PrecessedGeocentric, GCRS, PrecessedGeocentric)
+frame_transform_graph._create_direct_transform(TEME, ITRS, TEME)
+frame_transform_graph._create_direct_transform(TETE, ICRS, TETE)

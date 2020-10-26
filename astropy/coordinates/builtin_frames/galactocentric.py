@@ -586,6 +586,5 @@ def galactocentric_to_icrs(galactocentric_coord, icrs_frame):
     return get_matrix_vectors(galactocentric_coord, inverse=True)
 
 
-@frame_transform_graph.transform(AffineTransform, Galactocentric, Galactocentric)
-def galactocentric_to_galactocentric(from_coo, to_frame):
-    return from_coo._get_equivalent_affine_params_to(ICRS(), to_frame)
+# Create loopback transformation
+frame_transform_graph._create_direct_transform(Galactocentric, ICRS, Galactocentric)

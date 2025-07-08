@@ -3122,7 +3122,8 @@ reduce these to 2 dimensions using the naxis kwarg.
                 s += sfmt
                 description.append(s.format(*self.wcs.cd[i]))
 
-        description.append(f"NAXIS : {'  '.join(map(str, self._naxis))}")
+        if self._naxis != [0, 0]:
+            description.append(f"NAXIS : {'  '.join(map(str, self._naxis))}")
         return "\n".join(description)
 
     def get_axis_types(self):

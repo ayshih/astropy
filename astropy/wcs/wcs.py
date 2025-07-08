@@ -3087,8 +3087,6 @@ reduce these to 2 dimensions using the naxis kwarg.
                     break
         if len(_naxis) == 0:
             _naxis = [0, 0]
-        elif len(_naxis) == 1:
-            _naxis.append(0)
         self._naxis = _naxis
 
     def printwcs(self):
